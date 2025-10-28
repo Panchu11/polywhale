@@ -31,8 +31,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             live_trades = await api.fetch_recent_trades(limit=500)  # Increased from 50 to 500
             await api.close()
 
-            # Filter for whale trades
-            whale_trades = [t for t in live_trades if t.size >= 10000]
+            # Filter for whale trades - lowered threshold to $500 to show more activity
+            whale_trades = [t for t in live_trades if t.size >= 500]
 
             if not whale_trades:
                 await update.message.reply_text(
@@ -54,7 +54,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 message += "\n"
 
             message += f"_Showing {len(whale_trades[:10])} live whale trades_\n"
-            message += f"_Threshold: $10,000+_"
+            message += f"_Threshold: $500+_"
 
             await update.message.reply_text(message, parse_mode="Markdown")
             return
@@ -88,12 +88,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def get_whale_emoji(size: float) -> str:
     """Get emoji based on trade size"""
-    if size >= 100000:
-        return "🐋"  # Large whale
-    elif size >= 50000:
-        return "🐳"  # Medium whale
+    if size >= 10000:
+        return "🐋"  # Mega whale
+    elif size >= 5000:
+        return "🐳"  # Large whale
+    elif size >= 1000:
+        return "🐬"  # Medium whale
     else:
-        return "🐬"  # Small whale
+        return "🐟"  # Small whale
 
 
 def format_size(size: float) -> str:
