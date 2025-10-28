@@ -75,16 +75,21 @@ class SupabaseDatabase:
             logger.error(f"Failed to save trade: {e}")
             raise
     
-    async def get_recent_whale_trades(self, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_recent_whale_trades(self, since=None, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent whale trades"""
         try:
-            result = self.client.table("trades")\
+            query = self.client.table("trades")\
                 .select("*")\
-                .gte("amount_usd", settings.WHALE_THRESHOLD)\
-                .order("timestamp", desc=True)\
+                .gte("amount_usd", settings.WHALE_THRESHOLD)
+
+            # Add time filter if provided
+            if since:
+                query = query.gte("timestamp", since.isoformat())
+
+            result = query.order("timestamp", desc=True)\
                 .limit(limit)\
                 .execute()
-            
+
             return result.data if result.data else []
         except Exception as e:
             logger.error(f"Failed to get recent whale trades: {e}")
@@ -210,11 +215,59 @@ class SupabaseDatabase:
                 .select("whale_address")\
                 .eq("user_id", user_id)\
                 .execute()
-            
+
             return [row["whale_address"] for row in result.data] if result.data else []
         except Exception as e:
             logger.error(f"Failed to get tracked whales: {e}")
             return []
+
+    async def untrack_whale(self, user_id: int, whale_address: str) -> bool:
+        """Stop tracking a whale"""
+        try:
+            result = self.client.table("tracked_whales")\
+                .delete()\
+                .eq("user_id", user_id)\
+                .eq("whale_address", whale_address)\
+                .execute()
+
+            logger.info(f"User {user_id} stopped tracking whale {whale_address}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to untrack whale: {e}")
+            return False
+
+    async def get_user(self, telegram_id: int) -> Optional[Dict[str, Any]]:
+        """Get user by telegram ID"""
+        try:
+            result = self.client.table("users")\
+                .select("*")\
+                .eq("telegram_id", telegram_id)\
+                .execute()
+
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error(f"Failed to get user: {e}")
+            return None
+
+    async def update_user_settings(self, telegram_id: int, **kwargs) -> bool:
+        """Update user settings"""
+        try:
+            # First ensure user exists
+            user = await self.get_user(telegram_id)
+            if not user:
+                return False
+
+            # Update settings
+            result = self.client.table("users")\
+                .update(kwargs)\
+                .eq("telegram_id", telegram_id)\
+                .execute()
+
+            logger.info(f"Updated settings for user {telegram_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update user settings: {e}")
+            return False
     
     # Notification operations
     async def save_notification(self, notification_data: Dict[str, Any]) -> Dict[str, Any]:

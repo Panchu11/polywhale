@@ -8,7 +8,11 @@ from loguru import logger
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from config.settings import settings
-from bot.handlers import start, help_command, whales, markets, whale_profile
+from bot.handlers import (
+    start, help_command, whales, markets, whale_profile,
+    top, track, untrack, mywhales, settings as settings_handler,
+    alerts, threshold, about
+)
 from bot.services.whale_tracker import WhaleTracker
 # Use Supabase database (IPv4 compatible - Free Plan)
 from bot.services.supabase_db import SupabaseDatabase as Database
@@ -93,11 +97,26 @@ def main():
     )
     
     # Register command handlers
+    # Basic commands
     application.add_handler(CommandHandler("start", start.handle))
     application.add_handler(CommandHandler("help", help_command.handle))
+    application.add_handler(CommandHandler("about", about.handle))
+
+    # Whale tracking commands
     application.add_handler(CommandHandler("whales", whales.handle))
-    application.add_handler(CommandHandler("markets", markets.handle))
     application.add_handler(CommandHandler("whale", whale_profile.handle))
+    application.add_handler(CommandHandler("top", top.handle))
+    application.add_handler(CommandHandler("track", track.handle))
+    application.add_handler(CommandHandler("untrack", untrack.handle))
+    application.add_handler(CommandHandler("mywhales", mywhales.handle))
+
+    # Market commands
+    application.add_handler(CommandHandler("markets", markets.handle))
+
+    # Settings commands
+    application.add_handler(CommandHandler("settings", settings_handler.handle))
+    application.add_handler(CommandHandler("alerts", alerts.handle))
+    application.add_handler(CommandHandler("threshold", threshold.handle))
     
     # Register message handlers (for non-command messages)
     # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

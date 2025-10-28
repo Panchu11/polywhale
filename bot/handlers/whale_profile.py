@@ -31,35 +31,64 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     
     try:
-        # Fetch whale data
-        whale = await db.get_whale(address)
-        
-        if not whale:
+        # Fetch whale positions from Polymarket API
+        from bot.services.polymarket_api import PolymarketAPI
+        api = PolymarketAPI()
+
+        positions = await api.fetch_whale_positions(address)
+
+        # Also fetch recent trades by this whale
+        all_trades = await api.fetch_recent_trades(limit=200)
+        whale_trades = [t for t in all_trades if t.trader_address.lower() == address.lower()]
+
+        await api.close()
+
+        if not whale_trades and not positions:
             await update.message.reply_text(
-                f"🐋 Whale `{address}` not found.\n\n"
-                "This address might not have made any whale trades yet.",
+                f"🐋 No activity found for `{address[:6]}...{address[-4:]}`\n\n"
+                "This address might not have made any trades recently.",
                 parse_mode="Markdown"
             )
             return
-        
+
+        # Calculate stats
+        total_volume = sum(t.size for t in whale_trades)
+        trade_count = len(whale_trades)
+
+        # Determine whale tier
+        if total_volume >= 100000:
+            emoji = "🐋"
+            tier = "Mega Whale"
+        elif total_volume >= 50000:
+            emoji = "🐳"
+            tier = "Large Whale"
+        elif total_volume >= 10000:
+            emoji = "🐬"
+            tier = "Medium Whale"
+        else:
+            emoji = "🐟"
+            tier = "Small Trader"
+
+        short_addr = f"{address[:6]}...{address[-4:]}"
+
         # Format whale profile message
-        message = f"🐋 **Whale Profile**\n\n"
-        message += f"Address: `{whale.short_address}`\n"
-        
-        if whale.nickname:
-            message += f"Nickname: {whale.nickname}\n"
-        
-        message += f"\n📊 **Statistics**\n"
-        message += f"Total Volume: {whale.format_volume()}\n"
-        message += f"Total Trades: {whale.total_trades}\n"
-        message += f"Wins: {whale.wins} | Losses: {whale.losses}\n"
-        message += f"Win Rate: {whale.format_win_rate()}\n"
-        
-        if whale.last_trade_at:
-            message += f"Last Trade: {whale.last_trade_at.strftime('%Y-%m-%d %H:%M')}\n"
-        
-        message += f"\n_Use /track {whale.short_address} to follow this whale_"
-        
+        message = f"{emoji} **Whale Profile**\n\n"
+        message += f"Address: `{short_addr}`\n"
+        message += f"Tier: {tier}\n\n"
+
+        message += f"📊 **Recent Activity**\n"
+        message += f"Total Volume: ${total_volume:,.0f}\n"
+        message += f"Total Trades: {trade_count}\n"
+
+        if whale_trades:
+            latest = whale_trades[0]
+            message += f"Last Trade: {latest.timestamp.strftime('%Y-%m-%d %H:%M')}\n"
+
+        if positions:
+            message += f"\n💼 **Active Positions:** {len(positions)}\n"
+
+        message += f"\n_Use /track {address} to follow this whale_"
+
         await update.message.reply_text(
             message,
             parse_mode="Markdown"

@@ -58,16 +58,30 @@ class PolymarketAPI:
                 trades = []
                 for item in data:
                     try:
+                        # Parse timestamp - can be Unix timestamp (int) or ISO string
+                        timestamp = item.get("timestamp")
+                        if isinstance(timestamp, int):
+                            timestamp = datetime.fromtimestamp(timestamp)
+                        elif isinstance(timestamp, str):
+                            timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                        else:
+                            timestamp = datetime.now()
+
+                        # Calculate trade size in USD
+                        size = float(item.get("size", 0))
+                        price = float(item.get("price", 0))
+                        trade_value = size * price  # Approximate USD value
+
                         trade = Trade(
-                            id=item.get("id", item.get("transaction_hash", "")),
-                            trader_address=item.get("trader_address", item.get("maker", "")),
-                            market_id=item.get("market_id", item.get("asset_id", "")),
-                            market_name=item.get("market", "Unknown Market"),
+                            id=item.get("transactionHash", item.get("transaction_hash", "")),
+                            trader_address=item.get("proxyWallet", item.get("trader_address", "")),
+                            market_id=item.get("conditionId", item.get("asset", "")),
+                            market_name=item.get("title", item.get("market", "Unknown Market")),
                             side=item.get("side", "BUY"),
-                            size=float(item.get("size", 0)),
-                            price=float(item.get("price", 0)),
-                            timestamp=datetime.fromisoformat(item.get("timestamp", datetime.now().isoformat()).replace("Z", "+00:00")),
-                            transaction_hash=item.get("transaction_hash", "")
+                            size=trade_value,  # Use calculated USD value
+                            price=price,
+                            timestamp=timestamp,
+                            transaction_hash=item.get("transactionHash", item.get("transaction_hash", ""))
                         )
                         trades.append(trade)
                     except Exception as e:

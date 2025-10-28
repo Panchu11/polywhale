@@ -48,7 +48,7 @@ Let's track some whales! 🚀
         db = context.bot_data["db"]
         try:
             await db.create_user(
-                user_id=user.id,
+                telegram_id=user.id,
                 username=user.username,
                 first_name=user.first_name
             )

@@ -20,16 +20,43 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     
     try:
-        # Fetch recent whale trades (last hour)
-        since = datetime.now() - timedelta(hours=1)
-        trades = await db.get_recent_whale_trades(since=since, limit=10)
-        
+        # Fetch recent whale trades from database
+        trades = await db.get_recent_whale_trades(limit=10)
+
         if not trades:
-            await update.message.reply_text(
-                "🐋 No whale trades in the last hour.\n\n"
-                "Whales might be sleeping! 😴\n"
-                "Try again later or use /markets to see active markets."
-            )
+            # No trades in database yet - fetch live from Polymarket
+            from bot.services.polymarket_api import PolymarketAPI
+            api = PolymarketAPI()
+
+            live_trades = await api.fetch_recent_trades(limit=50)
+            await api.close()
+
+            # Filter for whale trades
+            whale_trades = [t for t in live_trades if t.size >= 10000]
+
+            if not whale_trades:
+                await update.message.reply_text(
+                    "🐋 No whale trades detected recently.\n\n"
+                    "Whales might be sleeping! 😴\n"
+                    "Try again later or use /markets to see active markets."
+                )
+                return
+
+            # Show live whale trades
+            message = "🐋 **Live Whale Trades** (from Polymarket)\n\n"
+
+            for trade in whale_trades[:10]:
+                whale_emoji = get_whale_emoji(trade.size)
+                message += f"{whale_emoji} **{format_size(trade.size)}** Trade\n"
+                message += f"Market: {trade.market_name[:50]}\n"
+                message += f"Side: {trade.side}\n"
+                message += f"Whale: `{shorten_address(trade.trader_address)}`\n"
+                message += "\n"
+
+            message += f"_Showing {len(whale_trades[:10])} live whale trades_\n"
+            message += f"_Threshold: $10,000+_"
+
+            await update.message.reply_text(message, parse_mode="Markdown")
             return
         
         # Format trades message

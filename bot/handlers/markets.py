@@ -19,35 +19,38 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     
     try:
-        # Fetch top markets by whale activity
-        markets = await db.get_top_markets_by_whale_activity(limit=10)
-        
+        # Fetch active markets from Polymarket API
+        from bot.services.polymarket_api import PolymarketAPI
+        api = PolymarketAPI()
+
+        markets = await api.fetch_markets(limit=10)
+
         if not markets:
             await update.message.reply_text(
                 "📊 No market data available yet.\n\n"
-                "The bot is still collecting data. Check back soon!"
+                "Unable to fetch markets from Polymarket. Try again later!"
             )
             return
-        
+
         # Format markets message
-        message = "🔥 **Top Markets by Whale Activity** (24h)\n\n"
-        
+        message = "🔥 **Top Active Markets on Polymarket**\n\n"
+
         for i, market in enumerate(markets, 1):
-            whale_trades = market.get("whale_trades_24h", 0)
-            whale_volume = market.get("whale_volume_24h", 0)
-            question = market.get("question", "Unknown market")
-            
+            question = market.question
+            volume = market.volume
+
             # Shorten question if too long
             if len(question) > 60:
                 question = question[:57] + "..."
-            
+
             message += f"{i}. **{question}**\n"
-            message += f"   🐋 {whale_trades} whale trades\n"
-            message += f"   💰 ${whale_volume:,.0f} whale volume\n"
+            message += f"   💰 Volume: {market.format_volume()}\n"
             message += "\n"
-        
-        message += "_Use /whale <address> to view whale profiles_"
-        
+
+        message += "_Markets are updated in real-time from Polymarket_"
+
+        await api.close()
+
         await update.message.reply_text(
             message,
             parse_mode="Markdown"
