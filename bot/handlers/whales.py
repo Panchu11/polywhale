@@ -28,7 +28,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             from bot.services.polymarket_api import PolymarketAPI
             api = PolymarketAPI()
 
-            live_trades = await api.fetch_recent_trades(limit=50)
+            live_trades = await api.fetch_recent_trades(limit=500)  # Increased from 50 to 500
             await api.close()
 
             # Filter for whale trades

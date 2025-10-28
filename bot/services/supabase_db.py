@@ -37,16 +37,16 @@ class SupabaseDatabase:
         """Create or update a user"""
         try:
             user_data = {
-                "telegram_id": telegram_id,
+                "user_id": telegram_id,  # Changed from telegram_id to user_id
                 "username": username,
                 "first_name": first_name,
                 "created_at": datetime.utcnow().isoformat()
             }
-            
+
             # Upsert user (insert or update if exists)
             result = self.client.table("users").upsert(
                 user_data,
-                on_conflict="telegram_id"
+                on_conflict="user_id"  # Changed from telegram_id to user_id
             ).execute()
             
             logger.info(f"User created/updated: {telegram_id}")
@@ -58,7 +58,7 @@ class SupabaseDatabase:
     async def get_user(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         """Get user by telegram ID"""
         try:
-            result = self.client.table("users").select("*").eq("telegram_id", telegram_id).execute()
+            result = self.client.table("users").select("*").eq("user_id", telegram_id).execute()  # Changed to user_id
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Failed to get user: {e}")
@@ -68,8 +68,16 @@ class SupabaseDatabase:
     async def save_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Save a trade to database"""
         try:
+            # Convert datetime to ISO string if present
+            if "timestamp" in trade_data and isinstance(trade_data["timestamp"], datetime):
+                trade_data["timestamp"] = trade_data["timestamp"].isoformat()
+
+            # Rename 'trade_id' to 'id' if present (to match schema)
+            if "trade_id" in trade_data:
+                trade_data["id"] = trade_data.pop("trade_id")
+
             result = self.client.table("trades").insert(trade_data).execute()
-            logger.debug(f"Trade saved: {trade_data.get('trade_id')}")
+            logger.debug(f"Trade saved: {trade_data.get('id')}")
             return result.data[0] if result.data else trade_data
         except Exception as e:
             logger.error(f"Failed to save trade: {e}")
@@ -80,7 +88,7 @@ class SupabaseDatabase:
         try:
             query = self.client.table("trades")\
                 .select("*")\
-                .gte("amount_usd", settings.WHALE_THRESHOLD)
+                .gte("size", settings.WHALE_THRESHOLD)  # Changed from amount_usd to size
 
             # Add time filter if provided
             if since:
@@ -255,15 +263,25 @@ class SupabaseDatabase:
             # First ensure user exists
             user = await self.get_user(telegram_id)
             if not user:
-                return False
+                # Create user if doesn't exist
+                await self.create_user(telegram_id)
+                user = await self.get_user(telegram_id)
+                if not user:
+                    return False
 
-            # Update settings
+            # Get current settings
+            current_settings = user.get('settings', {})
+
+            # Merge new settings with existing
+            updated_settings = {**current_settings, **kwargs}
+
+            # Update settings JSONB column
             result = self.client.table("users")\
-                .update(kwargs)\
-                .eq("telegram_id", telegram_id)\
+                .update({"settings": updated_settings})\
+                .eq("user_id", telegram_id)\
                 .execute()
 
-            logger.info(f"Updated settings for user {telegram_id}")
+            logger.info(f"Updated settings for user {telegram_id}: {kwargs}")
             return True
         except Exception as e:
             logger.error(f"Failed to update user settings: {e}")
