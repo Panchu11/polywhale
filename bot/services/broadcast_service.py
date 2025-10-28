@@ -46,6 +46,12 @@ class BroadcastService:
             logger.info("BroadcastService disabled by settings (BROADCAST_ENABLED=false)")
             return
 
+        # Ensure broadcast deduplication table exists
+        try:
+            await self.db.ensure_broadcast_log_table()
+        except Exception as e:
+            logger.warning(f"BroadcastService: failed to ensure broadcast_log table: {e}")
+
         self.is_running = True
         logger.info(
             f"BroadcastService started: interval={self.interval}s, min=${self.min_amount}"
@@ -74,16 +80,22 @@ class BroadcastService:
         # Move window forward for the next tick
         self._last_tick_at = end
 
-        trade = await self.db.get_largest_whale_trade_since(start, self.min_amount)
+        trade = await self.db.get_largest_whale_trade_between(start, end, self.min_amount)
         if not trade:
             logger.debug(
                 f"BroadcastService: no qualifying trade in window {start.isoformat()} → {end.isoformat()}"
             )
             return
 
-        # Guard against accidental double-send within the same window
+        # In-process guard against accidental double-send
         if trade.id == self.last_sent_trade_id:
             logger.debug("BroadcastService: trade already sent in this window; skipping")
+            return
+
+        # Cross-process dedup: only one instance should broadcast a given trade id
+        inserted = await self.db.try_record_broadcast(trade.id)
+        if not inserted:
+            logger.debug("BroadcastService: trade already broadcasted previously; skipping")
             return
 
         agg = await self.db.get_trader_aggregate(trade.trader_address)

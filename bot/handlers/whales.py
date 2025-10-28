@@ -21,8 +21,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     
     try:
-        # Fetch recent whale trades from database
-        since = datetime.now() - timedelta(hours=1)
+        # Fetch recent whale trades from database (use UTC to match stored timestamps)
+        since = datetime.utcnow() - timedelta(minutes=10)
         trades = await db.get_recent_whale_trades(since, limit=10)
 
         if not trades:
@@ -66,7 +66,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
         
         # Format trades message
-        message = "🐋 **Recent Whale Trades** (Last Hour)\n\n"
+        message = "🐋 **Recent Whale Trades** (Last 10 Minutes)\n\n"
         
         for trade in trades:
             whale_emoji = get_whale_emoji(trade.size)
@@ -129,18 +129,27 @@ def shorten_address(address: str) -> str:
 
 
 def format_time_ago(timestamp: datetime) -> str:
-    """Format timestamp as time ago"""
-    now = datetime.now()
+    """Format timestamp as time ago (assumes naive UTC timestamps)."""
+    now = datetime.utcnow()
+    # If timestamp is timezone-aware, convert to UTC then drop tz
+    if getattr(timestamp, "tzinfo", None) is not None:
+        from datetime import timezone
+        timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
     delta = now - timestamp
-    
-    if delta.seconds < 60:
+    total_seconds = int(delta.total_seconds())
+
+    if total_seconds < 60:
         return "just now"
-    elif delta.seconds < 3600:
-        minutes = delta.seconds // 60
+    elif total_seconds < 3600:
+        minutes = total_seconds // 60
         return f"{minutes}m ago"
-    elif delta.seconds < 86400:
-        hours = delta.seconds // 3600
+    elif total_seconds < 86400:
+        hours = total_seconds // 3600
         return f"{hours}h ago"
+    elif delta.days == 1:
+        return "yesterday"
+    elif delta.days < 7:
+        return f"{delta.days}d ago"
     else:
         return timestamp.strftime("%Y-%m-%d %H:%M")
 

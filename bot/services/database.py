@@ -121,6 +121,42 @@ class Database:
             row = await conn.fetchrow(query, since, min_amt)
             return Trade(**dict(row)) if row else None
 
+    async def get_largest_whale_trade_between(self, start: datetime, end: datetime, min_size: Optional[Union[int, float]] = None) -> Optional[Trade]:
+        """Return the largest whale trade in [start, end) window (by size)."""
+        min_amt = float(min_size) if min_size is not None else float(settings.WHALE_THRESHOLD)
+        query = """
+            SELECT * FROM trades
+            WHERE timestamp >= $1 AND timestamp < $2 AND size >= $3
+            ORDER BY size DESC, timestamp DESC
+            LIMIT 1
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, start, end, min_amt)
+            return Trade(**dict(row)) if row else None
+
+    async def ensure_broadcast_log_table(self) -> None:
+        """Ensure broadcast_log table exists for deduplication across restarts/instances."""
+        query = """
+            CREATE TABLE IF NOT EXISTS broadcast_log (
+                trade_id TEXT PRIMARY KEY,
+                sent_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query)
+
+    async def try_record_broadcast(self, trade_id: str) -> bool:
+        """Attempt to record a broadcast; returns True if inserted (i.e. not seen before)."""
+        query = """
+            INSERT INTO broadcast_log (trade_id, sent_at)
+            VALUES ($1, NOW())
+            ON CONFLICT (trade_id) DO NOTHING
+        """
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(query, trade_id)
+            # asyncpg returns a command tag like 'INSERT 0 1' or 'INSERT 0 0'
+            return result.strip().endswith("1")
+
     async def get_trader_aggregate(self, address: str) -> Dict[str, Any]:
         """Aggregate lifetime stats for a trader from trades table."""
         query = """
@@ -171,6 +207,28 @@ class Database:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(query, since, settings.WHALE_THRESHOLD)
             return int(row["cnt"]) if row and "cnt" in row else 0
+
+    async def get_top_markets_from_trades_since(self, since: datetime, limit: int = 10) -> List[Dict[str, Any]]:
+        """Aggregate markets by whale activity since a given time using only the trades table."""
+        query = """
+            SELECT
+                market_id,
+                COALESCE(MAX(market_name), 'Unknown Market') AS market_name,
+                COALESCE(MAX(market_slug), '') AS market_slug,
+                COALESCE(MAX(event_slug), '') AS event_slug,
+                COUNT(*) FILTER (WHERE size >= $2) AS whale_trades,
+                COALESCE(SUM(size) FILTER (WHERE size >= $2), 0) AS whale_volume,
+                MAX(timestamp) AS last_whale_trade
+            FROM trades
+            WHERE timestamp >= $1
+            GROUP BY market_id
+            ORDER BY whale_volume DESC
+            LIMIT $3
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, since, settings.WHALE_THRESHOLD, limit)
+            return [dict(row) for row in rows]
+
 
     # Whale operations
     async def save_whale(self, whale: Whale) -> None:

@@ -26,26 +26,24 @@ def shorten_address(address: str) -> str:
 
 
 def format_time_ago(timestamp: datetime) -> str:
-    """Format timestamp as time ago"""
-    now = datetime.now()
-    
-    # Handle timezone-aware timestamps
-    if timestamp.tzinfo is not None and now.tzinfo is None:
-        from datetime import timezone
-        now = now.replace(tzinfo=timezone.utc)
-    elif timestamp.tzinfo is None and now.tzinfo is not None:
-        from datetime import timezone
-        timestamp = timestamp.replace(tzinfo=timezone.utc)
-    
+    """Format timestamp as time ago (assumes naive UTC when tzinfo is None)."""
+    from datetime import timezone
+    now = datetime.utcnow()
+
+    # Normalize to naive UTC
+    if getattr(timestamp, "tzinfo", None) is not None:
+        timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+
     delta = now - timestamp
-    
-    if delta.seconds < 60:
+    total_seconds = int(delta.total_seconds())
+
+    if total_seconds < 60:
         return "just now"
-    elif delta.seconds < 3600:
-        minutes = delta.seconds // 60
+    elif total_seconds < 3600:
+        minutes = total_seconds // 60
         return f"{minutes}m ago"
-    elif delta.seconds < 86400:
-        hours = delta.seconds // 3600
+    elif total_seconds < 86400:
+        hours = total_seconds // 3600
         return f"{hours}h ago"
     elif delta.days == 1:
         return "yesterday"
