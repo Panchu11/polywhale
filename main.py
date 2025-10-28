@@ -10,7 +10,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from config.settings import settings
 from bot.handlers import start, help_command, whales, markets, whale_profile
 from bot.services.whale_tracker import WhaleTracker
-from bot.services.database import Database
+# Use Supabase database (IPv4 compatible - Free Plan)
+from bot.services.supabase_db import SupabaseDatabase as Database
 
 
 # Configure logging

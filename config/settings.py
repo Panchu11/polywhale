@@ -17,7 +17,11 @@ class Settings:
     
     # Database Configuration
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-    
+
+    # Supabase Configuration (Alternative to direct PostgreSQL)
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+
     # Redis Configuration
     REDIS_URL: str = os.getenv("REDIS_URL", "")
     
@@ -65,16 +69,17 @@ class Settings:
     @classmethod
     def validate(cls) -> bool:
         """Validate required settings"""
-        required = [
-            ("TELEGRAM_BOT_TOKEN", cls.TELEGRAM_BOT_TOKEN),
-            ("DATABASE_URL", cls.DATABASE_URL),
-        ]
-        
-        missing = [name for name, value in required if not value]
-        
-        if missing:
-            raise ValueError(f"Missing required settings: {', '.join(missing)}")
-        
+        # Check Telegram token
+        if not cls.TELEGRAM_BOT_TOKEN:
+            raise ValueError("Missing required setting: TELEGRAM_BOT_TOKEN")
+
+        # Check database configuration (either DATABASE_URL or Supabase)
+        has_postgres = bool(cls.DATABASE_URL)
+        has_supabase = bool(cls.SUPABASE_URL and cls.SUPABASE_KEY)
+
+        if not (has_postgres or has_supabase):
+            raise ValueError("Missing database configuration: Need either DATABASE_URL or (SUPABASE_URL + SUPABASE_KEY)")
+
         return True
 
 

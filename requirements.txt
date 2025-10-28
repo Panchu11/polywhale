@@ -1,7 +1,8 @@
 # Core dependencies
 python-telegram-bot==20.7
 aiohttp==3.9.1
-asyncpg==0.29.0
+asyncpg>=0.29.0
+supabase>=2.0.0
 redis==5.0.1
 python-dotenv==1.0.0
 apscheduler==3.10.4
