@@ -31,21 +31,19 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     
     try:
-        # Fetch whale positions from Polymarket API
+        # Fetch recent trades by this whale from Polymarket API
         from bot.services.polymarket_api import PolymarketAPI
         api = PolymarketAPI()
 
-        positions = await api.fetch_whale_positions(address)
-
-        # Also fetch recent trades by this whale
-        all_trades = await api.fetch_recent_trades(limit=200)
+        # Fetch more trades to find this whale
+        all_trades = await api.fetch_recent_trades(limit=500)
         whale_trades = [t for t in all_trades if t.trader_address.lower() == address.lower()]
 
         await api.close()
 
-        if not whale_trades and not positions:
+        if not whale_trades:
             await update.message.reply_text(
-                f"🐋 No activity found for `{address[:6]}...{address[-4:]}`\n\n"
+                f"🐋 No recent activity found for `{address[:6]}...{address[-4:]}`\n\n"
                 "This address might not have made any trades recently.",
                 parse_mode="Markdown"
             )
@@ -55,25 +53,28 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         total_volume = sum(t.size for t in whale_trades)
         trade_count = len(whale_trades)
 
-        # Determine whale tier
-        if total_volume >= 100000:
+        # Determine whale tier with lower thresholds
+        if total_volume >= 10000:
             emoji = "🐋"
             tier = "Mega Whale"
-        elif total_volume >= 50000:
+        elif total_volume >= 5000:
             emoji = "🐳"
             tier = "Large Whale"
-        elif total_volume >= 10000:
+        elif total_volume >= 1000:
             emoji = "🐬"
             tier = "Medium Whale"
         else:
             emoji = "🐟"
             tier = "Small Trader"
 
-        short_addr = f"{address[:6]}...{address[-4:]}"
+        # Get trader info from first trade
+        first_trade = whale_trades[0]
+        trader_name = first_trade.get_trader_display_name()
+        profile_url = first_trade.get_profile_url()
 
         # Format whale profile message
         message = f"{emoji} **Whale Profile**\n\n"
-        message += f"Address: `{short_addr}`\n"
+        message += f"Trader: [{trader_name}]({profile_url})\n"
         message += f"Tier: {tier}\n\n"
 
         message += f"📊 **Recent Activity**\n"
@@ -83,9 +84,12 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if whale_trades:
             latest = whale_trades[0]
             message += f"Last Trade: {latest.timestamp.strftime('%Y-%m-%d %H:%M')}\n"
+            message += f"Last Market: [{latest.market_name[:40]}...]({latest.get_market_url()})\n"
 
-        if positions:
-            message += f"\n💼 **Active Positions:** {len(positions)}\n"
+        # Show recent trades
+        message += f"\n🔥 **Recent Trades:**\n"
+        for trade in whale_trades[:5]:
+            message += f"• ${trade.size:,.0f} - {trade.side} {trade.outcome}\n"
 
         message += f"\n_Use /track {address} to follow this whale_"
 

@@ -24,7 +24,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         api = PolymarketAPI()
         
         # Fetch recent trades and aggregate by trader
-        trades = await api.fetch_recent_trades(limit=200)
+        trades = await api.fetch_recent_trades(limit=500)  # Increased from 200 to 500
         await api.close()
         
         if not trades:
@@ -34,16 +34,19 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
         
-        # Aggregate trades by trader
+        # Aggregate trades by trader - lowered threshold to $500
         whale_stats = {}
         for trade in trades:
-            if trade.size >= 10000:  # Only whales
+            if trade.size >= 500:  # Lowered from 10000 to 500
                 addr = trade.trader_address
                 if addr not in whale_stats:
                     whale_stats[addr] = {
                         'total_volume': 0,
                         'trade_count': 0,
-                        'largest_trade': 0
+                        'largest_trade': 0,
+                        'trader_name': trade.trader_name or '',
+                        'trader_pseudonym': trade.trader_pseudonym or '',
+                        'profile_url': trade.get_profile_url()
                     }
                 whale_stats[addr]['total_volume'] += trade.size
                 whale_stats[addr]['trade_count'] += 1
@@ -61,24 +64,35 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Format leaderboard message
         message = "🏆 **Top Whales Leaderboard**\n\n"
-        
+
         for i, (address, stats) in enumerate(top_whales, 1):
-            # Determine whale tier
-            if stats['total_volume'] >= 100000:
+            # Determine whale tier with lower thresholds
+            if stats['total_volume'] >= 10000:
                 emoji = "🐋"
-            elif stats['total_volume'] >= 50000:
+            elif stats['total_volume'] >= 5000:
                 emoji = "🐳"
-            else:
+            elif stats['total_volume'] >= 1000:
                 emoji = "🐬"
-            
-            short_addr = f"{address[:6]}...{address[-4:]}"
-            message += f"{i}. {emoji} `{short_addr}`\n"
+            else:
+                emoji = "🐟"
+
+            # Get trader display name
+            if stats['trader_pseudonym']:
+                trader_name = stats['trader_pseudonym']
+            elif stats['trader_name']:
+                trader_name = stats['trader_name']
+            else:
+                trader_name = f"{address[:6]}...{address[-4:]}"
+
+            profile_url = stats['profile_url']
+
+            message += f"{i}. {emoji} [{trader_name}]({profile_url})\n"
             message += f"   💰 ${stats['total_volume']:,.0f} total volume\n"
             message += f"   📊 {stats['trade_count']} trades\n"
             message += f"   🎯 ${stats['largest_trade']:,.0f} largest\n"
             message += "\n"
-        
-        message += "_Use /whale <address> to view full profile_"
+
+        message += f"_Showing top {len(top_whales)} traders (threshold: $500+)_"
         
         await update.message.reply_text(
             message,

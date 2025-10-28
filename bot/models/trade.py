@@ -8,11 +8,16 @@ from pydantic import BaseModel, Field
 
 class Trade(BaseModel):
     """Represents a trade on Polymarket"""
-    
+
     id: str = Field(..., description="Transaction hash")
     trader_address: str = Field(..., description="Trader wallet address")
+    trader_name: Optional[str] = Field(None, description="Trader username")
+    trader_pseudonym: Optional[str] = Field(None, description="Trader display name")
     market_id: str = Field(..., description="Market identifier")
     market_name: Optional[str] = Field(None, description="Market question")
+    market_slug: Optional[str] = Field(None, description="Market slug for URL")
+    event_slug: Optional[str] = Field(None, description="Event slug for URL")
+    outcome: Optional[str] = Field(None, description="Outcome (Yes/No)")
     side: str = Field(..., description="BUY/SELL or YES/NO")
     size: float = Field(..., description="Position size in USDC")
     price: float = Field(..., description="Trade price (0-1)")
@@ -58,7 +63,32 @@ class Trade(BaseModel):
     def format_price(self) -> str:
         """Format price as percentage"""
         return f"{self.price * 100:.1f}%"
-    
+
+    def get_profile_url(self) -> str:
+        """Get Polymarket profile URL for the trader"""
+        if self.trader_name:
+            return f"https://polymarket.com/profile/{self.trader_name}"
+        return f"https://polymarket.com/profile"
+
+    def get_market_url(self) -> str:
+        """Get Polymarket market URL"""
+        if self.market_slug:
+            return f"https://polymarket.com/event/{self.market_slug}"
+        elif self.event_slug:
+            return f"https://polymarket.com/event/{self.event_slug}"
+        return "https://polymarket.com"
+
+    def get_trader_display_name(self) -> str:
+        """Get best available trader name"""
+        if self.trader_pseudonym:
+            return self.trader_pseudonym
+        elif self.trader_name:
+            return self.trader_name
+        else:
+            # Shorten address
+            addr = self.trader_address
+            return f"{addr[:6]}...{addr[-4:]}" if len(addr) > 10 else addr
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()

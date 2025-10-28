@@ -75,8 +75,13 @@ class PolymarketAPI:
                         trade = Trade(
                             id=item.get("transactionHash", item.get("transaction_hash", "")),
                             trader_address=item.get("proxyWallet", item.get("trader_address", "")),
+                            trader_name=item.get("name", ""),
+                            trader_pseudonym=item.get("pseudonym", ""),
                             market_id=item.get("conditionId", item.get("asset", "")),
                             market_name=item.get("title", item.get("market", "Unknown Market")),
+                            market_slug=item.get("slug", ""),
+                            event_slug=item.get("eventSlug", ""),
+                            outcome=item.get("outcome", ""),
                             side=item.get("side", "BUY"),
                             size=trade_value,  # Use calculated USD value
                             price=price,

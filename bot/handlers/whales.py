@@ -47,10 +47,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             for trade in whale_trades[:10]:
                 whale_emoji = get_whale_emoji(trade.size)
+                trader_name = trade.get_trader_display_name()
+                profile_url = trade.get_profile_url()
+                market_url = trade.get_market_url()
+
                 message += f"{whale_emoji} **{format_size(trade.size)}** Trade\n"
-                message += f"Market: {trade.market_name[:50]}\n"
-                message += f"Side: {trade.side}\n"
-                message += f"Whale: `{shorten_address(trade.trader_address)}`\n"
+                message += f"Market: [{trade.market_name[:50]}]({market_url})\n"
+                message += f"Side: {trade.side} {trade.outcome if trade.outcome else ''}\n"
+                message += f"Trader: [{trader_name}]({profile_url})\n"
                 message += "\n"
 
             message += f"_Showing {len(whale_trades[:10])} live whale trades_\n"
