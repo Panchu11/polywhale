@@ -244,18 +244,7 @@ class SupabaseDatabase:
             logger.error(f"Failed to untrack whale: {e}")
             return False
 
-    async def get_user(self, telegram_id: int) -> Optional[Dict[str, Any]]:
-        """Get user by telegram ID"""
-        try:
-            result = self.client.table("users")\
-                .select("*")\
-                .eq("telegram_id", telegram_id)\
-                .execute()
 
-            return result.data[0] if result.data else None
-        except Exception as e:
-            logger.error(f"Failed to get user: {e}")
-            return None
 
     async def update_user_settings(self, telegram_id: int, **kwargs) -> bool:
         """Update user settings"""
