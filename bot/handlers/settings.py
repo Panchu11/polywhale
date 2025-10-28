@@ -33,7 +33,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Get settings from JSONB column or use defaults
         settings = user_data.get('settings', {}) if user_data else {}
-        whale_threshold = settings.get('whale_threshold', 10000)
+        whale_threshold = settings.get('whale_threshold', 500)  # Changed default to 500
         notifications_enabled = settings.get('notifications_enabled', True)
         
         settings_message = f"""

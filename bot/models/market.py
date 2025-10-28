@@ -8,9 +8,10 @@ from pydantic import BaseModel, Field
 
 class Market(BaseModel):
     """Represents a prediction market on Polymarket"""
-    
+
     market_id: str = Field(..., description="Market identifier")
     question: str = Field(..., description="Market question")
+    slug: Optional[str] = Field(None, description="Market slug for URL")
     description: Optional[str] = Field(None, description="Market description")
     category: Optional[str] = Field(None, description="Market category")
     end_date: Optional[datetime] = Field(None, description="Market end date")
@@ -30,10 +31,10 @@ class Market(BaseModel):
         """Format end date for display"""
         if not self.end_date:
             return "No end date"
-        
+
         now = datetime.now()
         delta = self.end_date - now
-        
+
         if delta.days > 365:
             return f"Ends in {delta.days // 365} years"
         elif delta.days > 30:
@@ -44,7 +45,13 @@ class Market(BaseModel):
             return f"Ends in {delta.seconds // 3600} hours"
         else:
             return "Ending soon"
-    
+
+    def get_market_url(self) -> str:
+        """Get Polymarket market URL"""
+        if self.slug:
+            return f"https://polymarket.com/market/{self.slug}"
+        return "https://polymarket.com"
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None

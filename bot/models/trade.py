@@ -66,16 +66,20 @@ class Trade(BaseModel):
 
     def get_profile_url(self) -> str:
         """Get Polymarket profile URL for the trader"""
+        # Prefer username format (@username), fallback to wallet address
         if self.trader_name:
-            return f"https://polymarket.com/profile/{self.trader_name}"
-        return f"https://polymarket.com/profile"
+            return f"https://polymarket.com/@{self.trader_name}"
+        elif self.trader_address:
+            return f"https://polymarket.com/profile/{self.trader_address}"
+        return "https://polymarket.com"
 
     def get_market_url(self) -> str:
         """Get Polymarket market URL"""
-        if self.market_slug:
-            return f"https://polymarket.com/event/{self.market_slug}"
-        elif self.event_slug:
+        # Use eventSlug first (shorter, cleaner), then fall back to slug
+        if self.event_slug:
             return f"https://polymarket.com/event/{self.event_slug}"
+        elif self.market_slug:
+            return f"https://polymarket.com/market/{self.market_slug}"
         return "https://polymarket.com"
 
     def get_trader_display_name(self) -> str:

@@ -19,12 +19,12 @@ Hey {user.first_name}! 👋
 I'm your personal whale tracker for Polymarket. I'll help you track the smartest money in prediction markets and never miss a whale move again.
 
 **What I can do:**
-🔔 Real-time whale alerts (trades >$10k)
+🔔 Real-time whale alerts (trades $500+)
 📊 Top whale leaderboard
-🔍 Market scanner & discovery
-💰 Smart money flow analysis
+🔍 Active market discovery
 📌 Track your favorite whales
 ⚙️ Custom alert settings
+🔗 Direct links to Polymarket profiles & markets
 
 **Quick Start:**
 • `/whales` - See recent whale trades
@@ -32,8 +32,8 @@ I'm your personal whale tracker for Polymarket. I'll help you track the smartest
 • `/top` - View whale leaderboard
 • `/help` - See all commands
 
-**Get Started:**
-Use `/settings` to customize your alerts and preferences.
+**Whale Tiers:**
+🐟 $500+ | 🐬 $1,000+ | 🐳 $5,000+ | 🐋 $10,000+
 
 Let's track some whales! 🚀
 """

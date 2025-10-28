@@ -134,6 +134,7 @@ class PolymarketAPI:
                         market = Market(
                             market_id=item.get("id", item.get("condition_id", "")),
                             question=item.get("question", "Unknown Question"),
+                            slug=item.get("slug", ""),
                             description=item.get("description", ""),
                             category=item.get("category", "Other"),
                             end_date=end_date,

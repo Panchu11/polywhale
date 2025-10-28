@@ -24,12 +24,13 @@ PolyWhale helps you track the smartest money in prediction markets. Never miss a
 ✅ Track your favorite whales
 
 **What's a Whale?**
-Whales are traders who make large trades (typically $10,000+). They often have insider knowledge or superior analysis, making them valuable to follow.
+Whales are traders who make large trades (typically $500+). They often have insider knowledge or superior analysis, making them valuable to follow.
 
 **Whale Tiers:**
-🐬 Small Whale: $10,000+
-🐳 Medium Whale: $50,000+
-🐋 Large Whale: $100,000+
+🐟 Small Whale: $500+
+🐬 Medium Whale: $1,000+
+🐳 Large Whale: $5,000+
+🐋 Mega Whale: $10,000+
 
 **Data Source:**
 All data is fetched live from Polymarket's official APIs.

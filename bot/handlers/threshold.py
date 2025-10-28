@@ -24,10 +24,10 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         amount = int(context.args[0].replace(',', '').replace('$', ''))
         
-        if amount < 1000:
+        if amount < 500:
             await update.message.reply_text(
-                "⚠️ Threshold must be at least $1,000.\n\n"
-                "Recommended: $10,000+ for whale tracking",
+                "⚠️ Threshold must be at least $500.\n\n"
+                "Recommended: $1,000+ for whale tracking",
                 parse_mode="Markdown"
             )
             return
@@ -61,12 +61,12 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Update user threshold
         await db.update_user_settings(user.id, whale_threshold=amount)
         
-        # Determine whale tier
-        if amount >= 100000:
+        # Determine whale tier with new thresholds
+        if amount >= 10000:
             tier = "🐋 Mega Whale"
-        elif amount >= 50000:
+        elif amount >= 5000:
             tier = "🐳 Large Whale"
-        elif amount >= 25000:
+        elif amount >= 1000:
             tier = "🐬 Medium Whale"
         else:
             tier = "🐟 Small Whale"

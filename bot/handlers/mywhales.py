@@ -21,7 +21,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         # Get user's tracked whales
         tracked = await db.get_tracked_whales(user.id)
-        
+
         if not tracked:
             await update.message.reply_text(
                 "📋 **You're not tracking any whales yet!**\n\n"
@@ -32,19 +32,42 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 parse_mode="Markdown"
             )
             return
-        
+
+        # Fetch recent trades to get trader names
+        from bot.services.polymarket_api import PolymarketAPI
+        api = PolymarketAPI()
+        all_trades = await api.fetch_recent_trades(limit=500)
+        await api.close()
+
+        # Build whale info map
+        whale_info = {}
+        for trade in all_trades:
+            addr = trade.trader_address.lower()
+            if addr not in whale_info:
+                whale_info[addr] = {
+                    'name': trade.get_trader_display_name(),
+                    'profile_url': trade.get_profile_url()
+                }
+
         # Format tracked whales message
         message = f"🐋 **Your Tracked Whales** ({len(tracked)})\n\n"
-        
+
         for i, whale_addr in enumerate(tracked, 1):
-            short_addr = f"{whale_addr[:6]}...{whale_addr[-4:]}"
-            message += f"{i}. `{short_addr}`\n"
+            addr_lower = whale_addr.lower()
+            if addr_lower in whale_info:
+                trader_name = whale_info[addr_lower]['name']
+                profile_url = whale_info[addr_lower]['profile_url']
+                message += f"{i}. [{trader_name}]({profile_url})\n"
+            else:
+                short_addr = f"{whale_addr[:6]}...{whale_addr[-4:]}"
+                message += f"{i}. `{short_addr}` (no recent activity)\n"
+
             message += f"   Use `/whale {whale_addr}` to view profile\n"
             message += f"   Use `/untrack {whale_addr}` to stop tracking\n"
             message += "\n"
-        
+
         message += "_You'll receive notifications when these whales trade_"
-        
+
         await update.message.reply_text(
             message,
             parse_mode="Markdown"

@@ -12,7 +12,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 📚 **PolyWhale Commands**
 
 **🐋 Whale Tracking**
-`/whales` - Recent whale trades (last hour)
+`/whales` - Recent whale trades ($500+)
 `/whale <address>` - View whale profile
 `/track <address>` - Track a whale
 `/untrack <address>` - Stop tracking
@@ -20,23 +20,12 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 `/top` - Whale leaderboard
 
 **📊 Markets**
-`/markets` - Top markets by whale activity
-`/trending` - Hottest markets right now
-`/new` - Newly listed markets
-`/closing` - Markets ending soon
-`/search <query>` - Search markets
-
-**💰 Analytics**
-`/flow` - Smart money flow (24h)
-`/consensus` - Whale consensus
-`/stats` - Your usage statistics
+`/markets` - Top active markets
 
 **⚙️ Settings**
-`/settings` - Configure preferences
-`/alerts` - Manage alert settings
-`/threshold <amount>` - Set min trade size
-`/categories` - Subscribe to categories
-`/quiet <hours>` - Set quiet hours
+`/settings` - View your settings
+`/alerts on/off` - Toggle notifications
+`/threshold <amount>` - Set min trade size (default: $500)
 
 **ℹ️ Info**
 `/help` - Show this help message
@@ -45,8 +34,11 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 **💡 Tips:**
 • Set your whale threshold to filter alerts
 • Track whales to get notified of their trades
-• Use quiet hours to avoid notifications at night
-• Check /flow daily to see where smart money is going
+• All markets and traders are clickable links to Polymarket
+• Default threshold is $500 - adjust with /threshold
+
+**Whale Tiers:**
+🐟 $500+ | 🐬 $1,000+ | 🐳 $5,000+ | 🐋 $10,000+
 
 Need help? Contact @Zun2025
 """

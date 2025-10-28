@@ -37,13 +37,13 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         for i, market in enumerate(markets, 1):
             question = market.question
-            volume = market.volume
+            market_url = market.get_market_url()
 
             # Shorten question if too long
             if len(question) > 60:
                 question = question[:57] + "..."
 
-            message += f"{i}. **{question}**\n"
+            message += f"{i}. [{question}]({market_url})\n"
             message += f"   💰 Volume: {market.format_volume()}\n"
             message += "\n"
 
