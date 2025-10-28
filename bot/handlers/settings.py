@@ -24,18 +24,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         if not user_data:
             # Create user first
-            await db.create_user(
-                telegram_id=user.id,
-                username=user.username,
-                first_name=user.first_name
-            )
+            await db.create_user(user.id, user.username, user.first_name)
             user_data = await db.get_user(user.id)
-        
+
         # Get settings from JSONB column or use defaults
-        settings = user_data.get('settings', {}) if user_data else {}
-        whale_threshold = settings.get('whale_threshold', 500)  # Changed default to 500
-        notifications_enabled = settings.get('notifications_enabled', True)
-        
+        user_settings = user_data.settings if user_data and hasattr(user_data, 'settings') else {}
+        whale_threshold = user_settings.get('whale_threshold', 500)  # Default to 500
+        notifications_enabled = user_settings.get('notifications_enabled', True)
+
         settings_message = f"""
 ⚙️ **Your Settings**
 

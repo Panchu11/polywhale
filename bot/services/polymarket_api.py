@@ -3,7 +3,7 @@ Polymarket API client
 """
 import aiohttp
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 
 from config.settings import settings
@@ -61,11 +61,15 @@ class PolymarketAPI:
                         # Parse timestamp - can be Unix timestamp (int) or ISO string
                         timestamp = item.get("timestamp")
                         if isinstance(timestamp, int):
-                            timestamp = datetime.fromtimestamp(timestamp)
+                            # Convert to UTC and store as naive UTC
+                            timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None)
                         elif isinstance(timestamp, str):
-                            timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                            # Parse as aware then convert to naive UTC
+                            aware = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                            timestamp = (aware.astimezone(timezone.utc).replace(tzinfo=None)
+                                         if aware.tzinfo is not None else aware)
                         else:
-                            timestamp = datetime.now()
+                            timestamp = datetime.utcnow()
 
                         # Calculate trade size in USD
                         size = float(item.get("size", 0))

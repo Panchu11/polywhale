@@ -52,7 +52,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Format tracked whales message
         message = f"🐋 **Your Tracked Whales** ({len(tracked)})\n\n"
 
-        for i, whale_addr in enumerate(tracked, 1):
+        addresses = [w.address if hasattr(w, 'address') else w for w in tracked]
+
+        for i, whale_addr in enumerate(addresses, 1):
             addr_lower = whale_addr.lower()
             if addr_lower in whale_info:
                 trader_name = whale_info[addr_lower]['name']

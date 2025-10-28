@@ -38,8 +38,8 @@ class User(BaseModel):
     
     def get_whale_threshold(self) -> int:
         """Get user's whale threshold setting"""
-        return self.get_setting("whale_threshold", 10000)
-    
+        return self.get_setting("whale_threshold", 500)
+
     def get_quiet_hours(self) -> tuple:
         """Get user's quiet hours (start, end)"""
         return self.get_setting("quiet_hours", (23, 7))

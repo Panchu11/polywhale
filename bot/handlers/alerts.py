@@ -61,9 +61,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Show current alert settings
         try:
             user_data = await db.get_user(user.id)
-            settings = user_data.get('settings', {}) if user_data else {}
-            notifications_enabled = settings.get('notifications_enabled', True)
-            
+            user_settings = user_data.settings if user_data and hasattr(user_data, 'settings') else {}
+            notifications_enabled = user_settings.get('notifications_enabled', True)
+
             message = f"""
 🔔 **Alert Settings**
 

@@ -4,6 +4,7 @@ Trade model
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, Field
+from config.settings import settings
 
 
 class Trade(BaseModel):
@@ -26,9 +27,9 @@ class Trade(BaseModel):
     
     @property
     def is_whale_trade(self) -> bool:
-        """Check if this is a whale trade (>$10k)"""
-        return self.size >= 10000
-    
+        """Check if this is a whale trade (>= configured threshold)"""
+        return self.size >= settings.WHALE_THRESHOLD
+
     @property
     def whale_tier(self) -> int:
         """Get whale tier (1=small, 2=medium, 3=large)"""

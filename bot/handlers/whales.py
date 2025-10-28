@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from loguru import logger
 from datetime import datetime, timedelta
+from config.settings import settings
 
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -21,7 +22,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     try:
         # Fetch recent whale trades from database
-        trades = await db.get_recent_whale_trades(limit=10)
+        since = datetime.now() - timedelta(hours=1)
+        trades = await db.get_recent_whale_trades(since, limit=10)
 
         if not trades:
             # No trades in database yet - fetch live from Polymarket
@@ -31,8 +33,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             live_trades = await api.fetch_recent_trades(limit=500)  # Increased from 50 to 500
             await api.close()
 
-            # Filter for whale trades - lowered threshold to $500 to show more activity
-            whale_trades = [t for t in live_trades if t.size >= 500]
+            # Filter for whale trades using configured threshold
+            whale_trades = [t for t in live_trades if t.is_whale_trade]
 
             if not whale_trades:
                 await update.message.reply_text(
@@ -58,7 +60,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 message += "\n"
 
             message += f"_Showing {len(whale_trades[:10])} live whale trades_\n"
-            message += f"_Threshold: $500+_"
+            message += f"_Threshold: ${settings.WHALE_THRESHOLD}+_"
 
             await update.message.reply_text(message, parse_mode="Markdown")
             return
@@ -69,15 +71,18 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         for trade in trades:
             whale_emoji = get_whale_emoji(trade.size)
             message += f"{whale_emoji} **{format_size(trade.size)}** Trade\n"
-            message += f"Market: {trade.market_name[:50]}...\n" if len(trade.market_name) > 50 else f"Market: {trade.market_name}\n"
+            market_name = (trade.market_name or "Unknown")
+            message += f"Market: {market_name[:50]}...\n" if len(market_name) > 50 else f"Market: {market_name}\n"
             message += f"Side: {trade.side} @ {format_price(trade.price)}\n"
-            message += f"Whale: `{shorten_address(trade.trader_address)}`\n"
+            profile_url = f"https://polymarket.com/profile/{trade.trader_address}"
+            short_addr = shorten_address(trade.trader_address)
+            message += f"Trader: [{short_addr}]({profile_url})\n"
             message += f"Time: {format_time_ago(trade.timestamp)}\n"
             message += "\n"
-        
+
         message += f"_Showing {len(trades)} whale trades_\n"
-        message += f"_Threshold: ${context.bot_data.get('whale_threshold', 10000):,}_"
-        
+        message += f"_Threshold: ${settings.WHALE_THRESHOLD:,}_"
+
         await update.message.reply_text(
             message,
             parse_mode="Markdown"

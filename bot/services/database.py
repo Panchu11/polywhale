@@ -2,7 +2,8 @@
 Database service for PolyWhale bot
 """
 import asyncpg
-from typing import List, Optional, Dict, Any
+import json
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from loguru import logger
 
@@ -12,10 +13,10 @@ from bot.models import Trade, Whale, Market, User
 
 class Database:
     """Database service using asyncpg"""
-    
+
     def __init__(self):
         self.pool: Optional[asyncpg.Pool] = None
-    
+
     async def connect(self):
         """Create database connection pool"""
         try:
@@ -29,29 +30,29 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to create database pool: {e}")
             raise
-    
+
     async def close(self):
         """Close database connection pool"""
         if self.pool:
             await self.pool.close()
             logger.info("Database connection pool closed")
-    
+
     # User operations
-    async def create_user(self, user_id: int, username: Optional[str] = None, 
+    async def create_user(self, user_id: int, username: Optional[str] = None,
                          first_name: Optional[str] = None) -> None:
         """Create or update user"""
         query = """
             INSERT INTO users (user_id, username, first_name, created_at, last_active)
             VALUES ($1, $2, $3, NOW(), NOW())
-            ON CONFLICT (user_id) 
-            DO UPDATE SET 
+            ON CONFLICT (user_id)
+            DO UPDATE SET
                 username = EXCLUDED.username,
                 first_name = EXCLUDED.first_name,
                 last_active = NOW()
         """
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id, username, first_name)
-    
+
     async def get_user(self, user_id: int) -> Optional[User]:
         """Get user by ID"""
         query = "SELECT * FROM users WHERE user_id = $1"
@@ -60,7 +61,19 @@ class Database:
             if row:
                 return User(**dict(row))
             return None
-    
+    async def update_user_settings(self, user_id: int, **kwargs) -> None:
+        """Merge and update settings JSONB for a user"""
+        query = """
+            UPDATE users
+            SET settings = COALESCE(settings, '{}'::jsonb) || $2::jsonb,
+                last_active = NOW()
+            WHERE user_id = $1
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id, json.dumps(kwargs))
+
+
+
     # Trade operations
     async def save_trade(self, trade: Trade) -> None:
         """Save a trade to database"""
@@ -82,11 +95,11 @@ class Database:
                 trade.timestamp,
                 trade.transaction_hash
             )
-    
+
     async def get_recent_whale_trades(self, since: datetime, limit: int = 10) -> List[Trade]:
         """Get recent whale trades"""
         query = """
-            SELECT * FROM trades 
+            SELECT * FROM trades
             WHERE timestamp >= $1 AND size >= $2
             ORDER BY timestamp DESC
             LIMIT $3
@@ -94,14 +107,78 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, since, settings.WHALE_THRESHOLD, limit)
             return [Trade(**dict(row)) for row in rows]
-    
+
+    async def get_largest_whale_trade_since(self, since: datetime, min_size: Optional[Union[int, float]] = None) -> Optional[Trade]:
+        """Return the largest whale trade since timestamp (by size)."""
+        min_amt = float(min_size) if min_size is not None else float(settings.WHALE_THRESHOLD)
+        query = """
+            SELECT * FROM trades
+            WHERE timestamp >= $1 AND size >= $2
+            ORDER BY size DESC, timestamp DESC
+            LIMIT 1
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, since, min_amt)
+            return Trade(**dict(row)) if row else None
+
+    async def get_trader_aggregate(self, address: str) -> Dict[str, Any]:
+        """Aggregate lifetime stats for a trader from trades table."""
+        query = """
+            SELECT COUNT(*) AS total_trades, COALESCE(SUM(size), 0) AS total_volume
+            FROM trades
+            WHERE trader_address = $1
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, address)
+            return {
+                "total_trades": int(row["total_trades"]) if row else 0,
+                "total_volume": float(row["total_volume"]) if row else 0.0,
+            }
+
+    async def get_top_whales_since(self, since: datetime, limit: int = 5) -> List[Dict[str, Any]]:
+        """Aggregate top whales by total volume since a timestamp"""
+        query = """
+            SELECT
+                trader_address AS address,
+                SUM(size) AS total_volume,
+                COUNT(*) AS trade_count,
+                MAX(size) AS largest_trade
+            FROM trades
+            WHERE timestamp >= $1 AND size >= $2
+            GROUP BY trader_address
+            ORDER BY total_volume DESC
+            LIMIT $3
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, since, settings.WHALE_THRESHOLD, limit)
+            results: List[Dict[str, Any]] = []
+            for row in rows:
+                results.append({
+                    "address": row["address"],
+                    "total_volume": float(row["total_volume"]) if row["total_volume"] is not None else 0.0,
+                    "trade_count": int(row["trade_count"]) if row["trade_count"] is not None else 0,
+                    "largest_trade": float(row["largest_trade"]) if row["largest_trade"] is not None else 0.0,
+                })
+            return results
+
+    async def count_whale_trades_since(self, since: datetime) -> int:
+        """Count whale trades (>= threshold) since a timestamp"""
+        query = """
+            SELECT COUNT(*) AS cnt
+            FROM trades
+            WHERE timestamp >= $1 AND size >= $2
+        """
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, since, settings.WHALE_THRESHOLD)
+            return int(row["cnt"]) if row and "cnt" in row else 0
+
     # Whale operations
     async def save_whale(self, whale: Whale) -> None:
         """Save or update whale"""
         query = """
             INSERT INTO whales (address, nickname, total_volume, total_trades, wins, losses, win_rate, last_trade_at, first_seen_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (address) 
+            ON CONFLICT (address)
             DO UPDATE SET
                 total_volume = EXCLUDED.total_volume,
                 total_trades = EXCLUDED.total_trades,
@@ -123,7 +200,7 @@ class Database:
                 whale.last_trade_at,
                 whale.first_seen_at
             )
-    
+
     async def get_whale(self, address: str) -> Optional[Whale]:
         """Get whale by address"""
         query = "SELECT * FROM whales WHERE address = $1"
@@ -132,7 +209,7 @@ class Database:
             if row:
                 return Whale(**dict(row))
             return None
-    
+
     async def get_or_create_whale(self, address: str) -> Whale:
         """Get whale or create if doesn't exist"""
         whale = await self.get_whale(address)
@@ -140,15 +217,15 @@ class Database:
             whale = Whale(address=address)
             await self.save_whale(whale)
         return whale
-    
+
     async def get_top_whales(self, limit: int = 10, order_by: str = "win_rate") -> List[Whale]:
         """Get top whales by specified metric"""
         valid_orders = ["win_rate", "total_volume", "total_trades"]
         if order_by not in valid_orders:
             order_by = "win_rate"
-        
+
         query = f"""
-            SELECT * FROM whales 
+            SELECT * FROM whales
             WHERE total_trades >= 10
             ORDER BY {order_by} DESC
             LIMIT $1
@@ -156,7 +233,7 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, limit)
             return [Whale(**dict(row)) for row in rows]
-    
+
     async def update_whale_stats(self, address: str) -> None:
         """Recalculate whale statistics from trades"""
         query = """
@@ -168,7 +245,7 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             await conn.execute(query, address)
-    
+
     # Market operations
     async def save_market(self, market: Market) -> None:
         """Save or update market"""
@@ -198,11 +275,11 @@ class Database:
                 market.liquidity,
                 market.active
             )
-    
+
     async def get_top_markets_by_whale_activity(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get top markets by whale activity"""
         query = """
-            SELECT 
+            SELECT
                 m.market_id,
                 m.question,
                 m.category,
@@ -211,7 +288,7 @@ class Database:
                 COALESCE(SUM(t.size), 0) as whale_volume_24h,
                 m.volume as total_volume
             FROM markets m
-            LEFT JOIN trades t ON m.market_id = t.market_id 
+            LEFT JOIN trades t ON m.market_id = t.market_id
                 AND t.timestamp > NOW() - INTERVAL '24 hours'
                 AND t.size >= $1
             WHERE m.active = TRUE
@@ -222,7 +299,7 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, settings.WHALE_THRESHOLD, limit)
             return [dict(row) for row in rows]
-    
+
     # Tracked whales operations
     async def track_whale(self, user_id: int, whale_address: str) -> None:
         """Add whale to user's tracked list"""
@@ -233,13 +310,13 @@ class Database:
         """
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id, whale_address)
-    
+
     async def untrack_whale(self, user_id: int, whale_address: str) -> None:
         """Remove whale from user's tracked list"""
         query = "DELETE FROM tracked_whales WHERE user_id = $1 AND whale_address = $2"
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id, whale_address)
-    
+
     async def get_tracked_whales(self, user_id: int) -> List[Whale]:
         """Get user's tracked whales"""
         query = """

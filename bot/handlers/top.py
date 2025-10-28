@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from loguru import logger
 from datetime import datetime, timedelta
+from config.settings import settings
 
 
 def get_whale_emoji(volume: float) -> str:
@@ -19,7 +20,7 @@ def get_whale_emoji(volume: float) -> str:
         return "🐟"
 
 
-def aggregate_whales(trades, threshold=500):
+def aggregate_whales(trades, threshold: int = settings.WHALE_THRESHOLD):
     """Aggregate trades by trader"""
     whale_stats = {}
     for trade in trades:
@@ -56,6 +57,7 @@ def format_whale_entry(rank: int, address: str, stats: dict, compact=False) -> s
     profile_url = stats['profile_url']
 
     if compact:
+        # Use Markdown inline link format for Telegram
         return f"{rank}. {emoji} [{trader_name}]({profile_url}) - ${stats['total_volume']:,.0f}"
     else:
         entry = f"{rank}. {emoji} [{trader_name}]({profile_url})\n"
@@ -76,69 +78,50 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
 
     try:
-        # Fetch trades from Polymarket API
-        from bot.services.polymarket_api import PolymarketAPI
-        api = PolymarketAPI()
+        # Optional window argument: /top [24h|7d|30d|all]; default 24h
+        text = (update.message.text or "").strip().lower()
+        parts = text.split()
+        arg = parts[1] if len(parts) > 1 else "24h"
 
-        # Fetch more trades to cover 30 days
-        trades = await api.fetch_recent_trades(limit=1000)
-        await api.close()
-
-        if not trades:
-            await update.message.reply_text(
-                "📊 No whale data available yet.\n\n"
-                "Check back soon!"
-            )
-            return
-
-        # Calculate time thresholds
         now = datetime.now()
-        time_24h = now - timedelta(hours=24)
-        time_7d = now - timedelta(days=7)
-        time_30d = now - timedelta(days=30)
-
-        # Filter trades by time periods
-        trades_24h = [t for t in trades if t.timestamp.replace(tzinfo=None) >= time_24h]
-        trades_7d = [t for t in trades if t.timestamp.replace(tzinfo=None) >= time_7d]
-        trades_30d = [t for t in trades if t.timestamp.replace(tzinfo=None) >= time_30d]
-
-        # Aggregate whales for each period
-        whales_24h = aggregate_whales(trades_24h)[:5]
-        whales_7d = aggregate_whales(trades_7d)[:5]
-        whales_30d = aggregate_whales(trades_30d)[:5]
-
-        # Build message
-        message = "🏆 **Top Whales Leaderboard**\n\n"
-
-        # 24 Hours
-        message += "⏰ **Last 24 Hours**\n"
-        if whales_24h:
-            for i, (addr, stats) in enumerate(whales_24h, 1):
-                message += format_whale_entry(i, addr, stats, compact=True) + "\n"
+        label = "last 24h"
+        if arg in ("24h", "1d", "day"):
+            since = now - timedelta(hours=24)
+            label = "last 24h"
+        elif arg in ("7d", "week", "1w"):
+            since = now - timedelta(days=7)
+            label = "last 7d"
+        elif arg in ("30d", "month", "1m"):
+            since = now - timedelta(days=30)
+            label = "last 30d"
+        elif arg in ("all", "alltime", "lifetime"):
+            # Effectively all-time (DB contains last N days)
+            since = datetime(1970, 1, 1)
+            label = "all time"
         else:
-            message += "_No whale activity in last 24h_\n"
+            # Fallback
+            since = now - timedelta(hours=24)
+            label = "last 24h"
 
-        message += "\n"
+        rows = await db.get_top_whales_since(since, limit=10)
+        total_analyzed = await db.count_whale_trades_since(since)
 
-        # 7 Days
-        message += "📅 **Last 7 Days**\n"
-        if whales_7d:
-            for i, (addr, stats) in enumerate(whales_7d, 1):
-                message += format_whale_entry(i, addr, stats, compact=True) + "\n"
+        message = f"🏆 **Top 10 Whales — {label}**\n\n"
+        if rows:
+            for i, row in enumerate(rows, 1):
+                stats = {
+                    'total_volume': row['total_volume'],
+                    'trade_count': row['trade_count'],
+                    'largest_trade': row['largest_trade'],
+                    'trader_name': '',
+                    'trader_pseudonym': '',
+                    'profile_url': f"https://polymarket.com/profile/{row['address']}"
+                }
+                message += format_whale_entry(i, row['address'], stats, compact=True) + "\n"
         else:
-            message += "_No whale activity in last 7 days_\n"
+            message += f"_No whale activity in {label}_\n"
 
-        message += "\n"
-
-        # 30 Days
-        message += "📆 **Last 30 Days**\n"
-        if whales_30d:
-            for i, (addr, stats) in enumerate(whales_30d, 1):
-                message += format_whale_entry(i, addr, stats, compact=True) + "\n"
-        else:
-            message += "_No whale activity in last 30 days_\n"
-
-        message += f"\n_Threshold: $500+ | Total trades analyzed: {len(trades)}_"
+        message += f"\n_Threshold: ${settings.WHALE_THRESHOLD}+ | Whale trades analyzed: {total_analyzed} ({label})_"
 
         await update.message.reply_text(
             message,

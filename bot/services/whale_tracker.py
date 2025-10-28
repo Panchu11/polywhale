@@ -54,7 +54,7 @@ class WhaleTracker:
                     continue
                 
                 # Check if it's a whale trade
-                if trade.is_whale_trade:
+                if self.is_whale_trade(trade):
                     new_whale_trades.append(trade)
                     self.seen_trade_ids.add(trade.id)
                     
