@@ -1,0 +1,20 @@
+# Core dependencies
+python-telegram-bot==20.7
+aiohttp==3.9.1
+asyncpg==0.29.0
+redis==5.0.1
+python-dotenv==1.0.0
+apscheduler==3.10.4
+pydantic==2.5.0
+loguru==0.7.2
+
+# Monitoring & Error Tracking
+sentry-sdk==1.39.1
+
+# Development dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
+
